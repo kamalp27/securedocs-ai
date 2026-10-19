@@ -1,0 +1,101 @@
+# ==============================================================================
+# SecureDocs AI — Render Blueprint Deployment Specification
+# Defines the FastAPI Backend Web Service and React/Vite Frontend Static Site.
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. FastAPI Backend Web Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: securedocs-backend
+    runtime: python
+    rootDir: backend
+    # Plan note: 'starter' ($7/mo) is required to attach the persistent disk below.
+    # For a zero-cost ephemeral demonstration, change plan to 'free' and remove the 'disk' block.
+    plan: starter
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "mkdir -p /var/data/uploads /var/data/faiss_indices && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"
+    healthCheckPath: /health
+    autoDeploy: false
+    disk:
+      name: securedocs-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "7"
+      # Cookie & CSRF Cross-Origin Security (Required on *.onrender.com Public Suffix domains)
+      - key: REFRESH_COOKIE_NAME
+        value: securedocs_refresh_token
+      - key: REFRESH_COOKIE_PATH
+        value: /api/v1/auth
+      - key: REFRESH_COOKIE_HTTPONLY
+        value: "true"
+      - key: REFRESH_COOKIE_SECURE
+        value: "true"
+      - key: REFRESH_COOKIE_SAMESITE
+        value: "none"
+      - key: CSRF_COOKIE_NAME
+        value: securedocs_csrf_token
+      - key: CSRF_HEADER_NAME
+        value: X-CSRF-Token
+      - key: CSRF_COOKIE_SAMESITE
+        value: "none"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "false"
+      # Persistent Storage Paths (Mapped to Render Persistent Disk)
+      - key: DATABASE_URL
+        value: sqlite:////var/data/securedocs.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: FAISS_INDEX_PATH
+        value: /var/data/faiss_indices/securedocs.index
+      # AI Provider: Extractive CPU grounded provider (deterministic, zero external GPU dependency)
+      - key: DEFAULT_QA_PROVIDER
+        value: deterministic_extractive
+      # CORS: Must be configured with the exact public frontend URL
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 2. React + TypeScript + Vite Frontend Static Site
+  # ----------------------------------------------------------------------------
+  - type: static
+    name: securedocs-frontend
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    publishDir: dist
+    autoDeploy: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+    envVars:
+      # Public API URL baked into frontend bundle at build time
+      - key: VITE_API_URL
+        sync: false
