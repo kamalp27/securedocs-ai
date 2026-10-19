@@ -1,0 +1,81 @@
+# ==============================================================================
+# SecureDocs AI — GitHub Pages Deployment Workflow
+# Builds and deploys the React + TypeScript (Vite) frontend to GitHub Pages.
+# Note: GitHub Pages hosts only the static frontend SPA. Authentication,
+# document ingestion, and AI Q&A require a separately deployed backend.
+# ==============================================================================
+
+name: Deploy Frontend to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Permissions required to publish to GitHub Pages using OIDC
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Prevent concurrent deployments from colliding
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build & Test Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          GITHUB_PAGES: "true"
+          # Backend API URL can be configured via GitHub Repository Variable VITE_API_URL
+          # (e.g. https://securedocs-backend.onrender.com). If unset, defaults to local/dev fallback.
+          VITE_API_URL: ${{ vars.VITE_API_URL || '' }}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
