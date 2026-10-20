@@ -83,6 +83,40 @@ async def test_security_response_headers_present(async_client: AsyncClient):
     assert "default-src 'self'" in headers.get("Content-Security-Policy", "")
 
 
+@pytest.mark.asyncio
+async def test_swagger_docs_and_openapi_endpoints(async_client: AsyncClient):
+    """Verify Swagger UI and OpenAPI endpoints operate with tailored CSP."""
+    # 1. Health endpoint maintains strict API CSP
+    health_res = await async_client.get("/health")
+    assert health_res.status_code == 200
+    health_csp = health_res.headers.get("Content-Security-Policy", "")
+    assert "default-src 'self'" in health_csp
+    assert "https://cdn.jsdelivr.net" not in health_csp
+
+    # 2. OpenAPI schema returns valid JSON
+    openapi_res = await async_client.get("/api/v1/openapi.json")
+    assert openapi_res.status_code == 200
+    assert openapi_res.json().get("info", {}).get("title") == "SecureDocs AI"
+
+    # 3. Swagger UI returns HTML and permits necessary CDN assets and inline script
+    docs_res = await async_client.get("/api/v1/docs")
+    assert docs_res.status_code == 200
+    assert '<div id="swagger-ui">' in docs_res.text
+    docs_csp = docs_res.headers.get("Content-Security-Policy", "")
+    assert "default-src 'self'" in docs_csp
+    assert "https://cdn.jsdelivr.net" in docs_csp
+    assert "'unsafe-inline'" in docs_csp
+
+    # 4. Root and standard /docs redirect to /api/v1/docs
+    root_res = await async_client.get("/", follow_redirects=False)
+    assert root_res.status_code in (307, 308, 302, 301)
+    assert root_res.headers.get("location") == "/api/v1/docs"
+
+    std_docs_res = await async_client.get("/docs", follow_redirects=False)
+    assert std_docs_res.status_code in (307, 308, 302, 301)
+    assert std_docs_res.headers.get("location") == "/api/v1/docs"
+
+
 def test_startup_reconciliation_restores_empty_faiss_index(
     db_session: Session, sample_user: User
 ):
