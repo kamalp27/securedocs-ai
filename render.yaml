@@ -1,27 +1,21 @@
 # ==============================================================================
 # SecureDocs AI — Render Blueprint Deployment Specification
-# Defines the FastAPI Backend Web Service and React/Vite Frontend Static Site.
+# Defines the FastAPI Backend Web Service (Free Tier) and Static Site.
 # ==============================================================================
 
 services:
   # ----------------------------------------------------------------------------
-  # 1. FastAPI Backend Web Service
+  # 1. FastAPI Backend Web Service (Free Tier)
   # ----------------------------------------------------------------------------
   - type: web
     name: securedocs-backend
     runtime: python
     rootDir: backend
-    # Plan note: 'starter' ($7/mo) is required to attach the persistent disk below.
-    # For a zero-cost ephemeral demonstration, change plan to 'free' and remove the 'disk' block.
-    plan: starter
+    plan: free
     buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
-    startCommand: "mkdir -p /var/data/uploads /var/data/faiss_indices && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"
+    startCommand: "mkdir -p ./data/uploads ./data/faiss_indices && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"
     healthCheckPath: /health
     autoDeploy: false
-    disk:
-      name: securedocs-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
@@ -37,7 +31,7 @@ services:
         value: "30"
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: "7"
-      # Cookie & CSRF Cross-Origin Security (Required on *.onrender.com Public Suffix domains)
+      # Cookie & CSRF Cross-Origin Security (Required for cross-site calls from GitHub Pages / onrender.com)
       - key: REFRESH_COOKIE_NAME
         value: securedocs_refresh_token
       - key: REFRESH_COOKIE_PATH
@@ -58,22 +52,22 @@ services:
         value: "true"
       - key: TRUST_PROXY_HEADERS
         value: "false"
-      # Persistent Storage Paths (Mapped to Render Persistent Disk)
+      # Free-Tier Ephemeral Storage Paths (In-container ./data directory)
       - key: DATABASE_URL
-        value: sqlite:////var/data/securedocs.db
+        value: sqlite:///./data/securedocs.db
       - key: UPLOAD_DIR
-        value: /var/data/uploads
+        value: ./data/uploads
       - key: FAISS_INDEX_PATH
-        value: /var/data/faiss_indices/securedocs.index
+        value: ./data/faiss_indices/securedocs.index
       # AI Provider: Extractive CPU grounded provider (deterministic, zero external GPU dependency)
       - key: DEFAULT_QA_PROVIDER
         value: deterministic_extractive
-      # CORS: Must be configured with the exact public frontend URL
+      # CORS: Configured for GitHub Pages origin and local development
       - key: BACKEND_CORS_ORIGINS
-        sync: false
+        value: '["https://kamalp27.github.io", "http://localhost:5173"]'
 
   # ----------------------------------------------------------------------------
-  # 2. React + TypeScript + Vite Frontend Static Site
+  # 2. React + TypeScript + Vite Frontend Static Site (Optional alternative to Pages)
   # ----------------------------------------------------------------------------
   - type: static
     name: securedocs-frontend
@@ -96,6 +90,5 @@ services:
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
     envVars:
-      # Public API URL baked into frontend bundle at build time
       - key: VITE_API_URL
         sync: false
