@@ -69,11 +69,12 @@ services:
   # ----------------------------------------------------------------------------
   # 2. React + TypeScript + Vite Frontend Static Site (Optional alternative to Pages)
   # ----------------------------------------------------------------------------
-  - type: static
+  - type: web
     name: securedocs-frontend
+    runtime: static
     rootDir: frontend
     buildCommand: "npm install && npm run build"
-    publishDir: dist
+    staticPublishPath: ./dist
     autoDeploy: false
     routes:
       - type: rewrite
