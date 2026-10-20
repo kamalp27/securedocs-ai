@@ -264,3 +264,4 @@ Prior to production deployment with real confidential organizational documents:
 - [ ] **Scanned Document OCR:** Integration of Tesseract / EasyOCR for image-based PDFs and scans.
 - [ ] **Semantic Vector Caching:** Caching frequent semantic search results to reduce embedding latency.
 - [ ] **S3 / Blob Storage Connector:** Optional cloud storage backend for document binaries.
+- [ ] 
